@@ -14,16 +14,23 @@ The goal is to search a local image dataset using natural language, even when th
 The key pipeline is:
 
 ```text
+Required, fully local (no API key):
 Images + metadata
-→ Vision caption/tag extraction
-→ Searchable text generation
-→ Embeddings
-→ Semantic image retrieval
-→ Agent explanation
-→ Saved report
+→ CLIP image encoder → image embeddings (the search index)
+→ User query → CLIP text encoder → cosine similarity → top-k images
+
+Optional enrichment (needs OPENAI_API_KEY):
+Retrieved images → Vision caption/tag extraction
+→ Searchable text → explanations + report content
 ```
 
 The project must be implemented as a working notebook/demo, not as a production app.
+
+Three hard requirements:
+
+- The project must run inside an **Anaconda (conda) environment**, not a plain `venv`.
+- The embedding model must be **CLIP**: images are embedded with the CLIP image encoder, text queries with the CLIP text encoder, so retrieval works fully locally without API calls. Default checkpoint: `open_clip` `ViT-B-32` / `laion2b_s34b_b79k` (~600MB, fits a 4GB-VRAM GPU; `transformers` `openai/clip-vit-base-patch32` is an equivalent alternative).
+- The dataset is a **deterministic 3,000-image subset of Flickr8k**, downloaded with `kagglehub.dataset_download("adityajn105/flickr8k")` and prepared by `scripts/prepare_flickr8k_subset.py`.
 
 ---
 
@@ -145,28 +152,23 @@ The point of the project is to demonstrate that the system can understand images
 Offline indexing pipeline:
 
 ```text
-Images folder
+Images folder + metadata.csv
      │
-     ▼
-Metadata loader
+     ├─► REQUIRED, local, no API key:
+     │      CLIP image encoder (batched, GPU if available)
+     │      → cache/image_embeddings.npy + cache/embeddings_meta.json
+     │      → local vector index
      │
-     ▼
-Vision extractor
-     │
-     ├── generated caption
-     ├── object tags
-     ├── scene tags
-     ├── activity tags
-     └── visual attributes
-     │
-     ▼
-Searchable text builder
-     │
-     ▼
-Embedding generator
-     │
-     ▼
-Local vector index
+     └─► OPTIONAL, needs OPENAI_API_KEY (lazy — only for retrieved images):
+            Vision extractor
+              ├── generated caption
+              ├── object tags
+              ├── scene tags
+              ├── activity tags
+              └── visual attributes
+            → searchable text builder
+            → explanations + Markdown/JSON report
+              (never enters the retrieval index)
 ```
 
 ---
@@ -175,26 +177,42 @@ Local vector index
 
 Use Python notebook first.
 
+The project must run in an **Anaconda (conda) environment**. Run these commands in **Anaconda Prompt**, or in PowerShell after a one-time `conda init powershell` and a shell restart:
+
+```bash
+conda create -n image-extractor python=3.11 -y
+conda activate image-extractor
+pip install torch --index-url https://download.pytorch.org/whl/cu128  # CUDA build for NVIDIA GPUs (e.g. RTX 3050); no GPU → skip this line
+pip install -r requirements.txt
+```
+
 Required:
 
 ```text
-python
+python (Anaconda / conda environment)
 pandas
 numpy
 Pillow
 matplotlib
 scikit-learn
-openai
+torch
+open-clip-torch
+kagglehub
 python-dotenv
+jupyter
 ```
 
 Optional:
 
 ```text
+openai  (only for caption/tag generation and explanations, not for retrieval)
+transformers  (only if you prefer HF CLIPModel over open-clip-torch)
 gradio
 faiss-cpu
 chromadb
 ```
+
+Embeddings must come from **CLIP**, not from an embeddings API. Default model: `open_clip.create_model_and_transforms('ViT-B-32', pretrained='laion2b_s34b_b79k')` — fits a 4GB-VRAM GPU comfortably and embeds 3,000 images in ~1–2 minutes at batch size 64.
 
 For Day 5, keep it simple. Prefer:
 
@@ -218,17 +236,18 @@ image-extractor-agent/
 ├── requirements.txt
 ├── .env.example
 │
+├── scripts/
+│   └── prepare_flickr8k_subset.py
+│
 ├── data/
-│   ├── images/
-│   │   ├── img_001.jpg
-│   │   ├── img_002.jpg
-│   │   └── ...
-│   │
+│   ├── raw/                  (temporary kagglehub download; removed by --remove-raw)
+│   ├── images/               (the 3,000-image subset)
 │   └── metadata.csv
 │
 ├── cache/
 │   ├── generated_image_descriptions.json
-│   └── image_embeddings.npy
+│   ├── image_embeddings.npy
+│   └── embeddings_meta.json  (CLIP model name + ordered image_ids for the .npy rows)
 │
 ├── outputs/
 │   ├── search_results.json
@@ -253,28 +272,35 @@ However, the notebook should still be organized with clear sections.
 
 ## Input Dataset
 
-The minimum dataset should contain:
+The working dataset is fixed: a **deterministic 3,000-image subset of Flickr8k**.
 
-```text
-20–50 images
+Download the full dataset (~8,000 images) with kagglehub:
+
+```python
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("adityajn105/flickr8k")
+
+print("Path to dataset files:", path)
 ```
 
-Better:
+Then build the subset with `scripts/prepare_flickr8k_subset.py`:
 
-```text
-100–300 images
+```bash
+python scripts/prepare_flickr8k_subset.py --count 3000 --remove-raw
 ```
 
-Do not use a huge dataset for the Day 5 demo.
+The script must:
 
-The images can come from:
+- download Flickr8k via kagglehub (or reuse an existing download);
+- select 3,000 images deterministically (sorted filenames + fixed random seed);
+- copy them into `data/images/` and never copy `captions.txt` there;
+- generate `data/metadata.csv` programmatically: real width/height via PIL, synthetic location/date from a seeded RNG;
+- sort `metadata.csv` by `image_id` so ordering is deterministic;
+- optionally delete the raw download (`--remove-raw`).
 
-- Flickr8k subset
-- personal image folder
-- Unsplash subset
-- any local folder of mixed images
-
-For the first working demo, use a small subset.
+While developing, iterate on the first ~50 images of the same subset, then build the full 3,000-image index once — CLIP makes this cheap (minutes, no API calls).
 
 ---
 
@@ -288,15 +314,17 @@ Required columns:
 image_id,file_name,image_path,location,date,width,height,source
 ```
 
-Example:
+Use the original Flickr8k filename stem as `image_id`. Example:
 
 ```csv
-img_001,img_001.jpg,data/images/img_001.jpg,Almaty,2026-07-01,1024,768,flickr8k
-img_002,img_002.jpg,data/images/img_002.jpg,Astana,2026-07-02,800,600,flickr8k
-img_003,img_003.jpg,data/images/img_003.jpg,Atyrau,2026-07-03,1280,720,flickr8k
+1000268201_693b08cb0e,1000268201_693b08cb0e.jpg,data/images/1000268201_693b08cb0e.jpg,Almaty,2026-07-01,1024,768,flickr8k
+1001773457_577c3a7d70,1001773457_577c3a7d70.jpg,data/images/1001773457_577c3a7d70.jpg,Astana,2026-07-02,800,600,flickr8k
+1002674143_1b742ab4b8,1002674143_1b742ab4b8.jpg,data/images/1002674143_1b742ab4b8.jpg,Atyrau,2026-07-03,1280,720,flickr8k
 ```
 
-If real location/date are not available, generate realistic synthetic metadata.
+(Examples elsewhere in this document use short ids like `img_014` for readability only.)
+
+`metadata.csv` is generated by `scripts/prepare_flickr8k_subset.py`, not written by hand: real width/height come from PIL, and location/date are synthetic (seeded RNG), because Flickr8k has no reliable capture metadata.
 
 Example synthetic locations:
 
@@ -374,7 +402,7 @@ Date: 2026-07-01.
 Size: 1024x768.
 ```
 
-This `searchable_text` is what should be embedded.
+The primary search index is built from **CLIP image embeddings**. The `searchable_text` is used for explanations and the report only — it is never embedded into the retrieval index. (CLIP's text encoder truncates at 77 BPE tokens; the example above already exceeds that, so it could not be embedded faithfully anyway.)
 
 Do not embed raw metadata only.
 
@@ -384,13 +412,19 @@ Do not embed `captions.txt`.
 
 # Embedding and Search
 
+Use **CLIP** as the embedding model. Default: `open_clip.create_model_and_transforms('ViT-B-32', pretrained='laion2b_s34b_b79k')`; `transformers` `CLIPModel` (`openai/clip-vit-base-patch32`) is an equivalent alternative. CLIP is a dual encoder: the image encoder and the text encoder map into the same vector space, so a text query can be compared directly against image vectors.
+
 ## Embedding Step
 
 For each image:
 
 ```text
-searchable_text → embedding vector
+image file → CLIP image encoder → image embedding vector
 ```
+
+- Encode in batches (e.g. 64) under `torch.no_grad()`, on the GPU if available — 3,000 images take ~1–2 minutes on an RTX 3050, and the index is complete with **zero API calls**.
+- L2-normalize the vectors before saving; cosine similarity then becomes a single numpy matmul.
+- The index is **pure CLIP image embeddings**. Do not mix caption or metadata text into the index vectors: the synthetic location/date strings have no visual grounding in CLIP space and only add noise. Metadata influences results through the metadata filter, not through embeddings.
 
 Save embeddings to:
 
@@ -398,7 +432,17 @@ Save embeddings to:
 cache/image_embeddings.npy
 ```
 
-Save enriched metadata to:
+Alongside the array, save a sidecar that ties rows to images and pins the model:
+
+```text
+cache/embeddings_meta.json
+{
+  "model": "ViT-B-32/laion2b_s34b_b79k",
+  "image_ids": ["...ordered exactly like the .npy rows..."]
+}
+```
+
+Save generated captions/tags (when available) to:
 
 ```text
 cache/generated_image_descriptions.json
@@ -409,7 +453,7 @@ cache/generated_image_descriptions.json
 For user query:
 
 ```text
-user query → query embedding
+parsed visual query → CLIP text encoder → query embedding
 ```
 
 Then calculate cosine similarity:
@@ -418,13 +462,17 @@ Then calculate cosine similarity:
 similarity(query_embedding, image_embedding)
 ```
 
-Return top-k results.
+Return top-k results over the filtered candidate set (see Metadata Filtering — filters are applied **before** ranking).
+
+Because CLIP runs locally, retrieval must work without any API key.
 
 Recommended default:
 
 ```text
 top_k = 5
 ```
+
+Score expectations: CLIP image–text cosine similarity is low in absolute terms — a good match is typically **0.2–0.35** for ViT-B/32; 0.9+ never occurs across modalities. Interpret scores relatively for ranking; never compare them against a high absolute threshold.
 
 ---
 
@@ -480,6 +528,16 @@ Example parsed query:
 }
 ```
 
+## Filter before ranking (important)
+
+Apply metadata filters **before** taking top-k, not after:
+
+1. Build a boolean mask over `metadata.csv` from the filters (candidate set).
+2. Rank only the masked rows of the embedding matrix by CLIP similarity (or score all 3,000 rows — one cheap matmul — and mask the score vector).
+3. Take top-k from the survivors.
+
+Filtering after top-k retrieval starves results: with ~6 synthetic locations, the global top-5 for "animals in Almaty" will usually contain zero Almaty images, even though hundreds of matching Almaty images exist in the index. With filter-then-rank, results can be empty only when the filter itself matches zero images — in that case the agent should say "no images match location=X" instead of returning a silent empty list.
+
 ---
 
 # Agent Requirements
@@ -494,10 +552,12 @@ Create small tools/functions:
 def parse_query_tool(query: str) -> dict:
     ...
 
-def search_images_tool(visual_query: str, top_k: int = 5) -> list:
+def metadata_filter_tool(filters: dict) -> list:
+    """Returns candidate image_ids (a mask over metadata.csv)."""
     ...
 
-def metadata_filter_tool(results: list, filters: dict) -> list:
+def search_images_tool(visual_query: str, candidate_ids: list | None = None, top_k: int = 5) -> list:
+    """Ranks the candidate set (or all images) by CLIP similarity."""
     ...
 
 def explain_results_tool(query: str, results: list) -> list:
@@ -512,13 +572,14 @@ The agent flow:
 ```text
 1. Receive user query
 2. Parse query into visual intent and metadata filters
-3. Search image index using semantic embeddings
-4. Apply metadata filters
-5. Rank results
-6. Explain each result
-7. Save report
-8. Return final structured answer
+3. Apply metadata filters to select the candidate set
+4. Rank candidates by CLIP similarity and take top-k
+5. Explain each result
+6. Save report
+7. Return final structured answer
 ```
+
+Explanations without an API key: build the rule-based fallback from what is always available — the CLIP similarity score, which metadata filters matched, and the query terms (e.g. "Ranked 1 of 512 Almaty candidates by CLIP visual similarity, score 0.31; caption/tags unavailable — no API key"). Mention caption/tag overlap only when a real (non-fallback) description exists.
 
 ---
 
@@ -545,7 +606,7 @@ The final output should look like this:
       "date": "2026-07-01",
       "width": 1024,
       "height": 768,
-      "similarity_score": 0.91,
+      "similarity_score": 0.31,
       "generated_caption": "A brown dog runs through a grassy field.",
       "tags": ["dog", "grass", "field", "running"],
       "explanation": "This image matches because the generated caption and tags contain a dog, outdoor grass, and running activity."
@@ -591,7 +652,7 @@ Search for images containing a dog running outdoors on grass.
 - Location: Almaty
 - Date: 2026-07-01
 - Size: 1024x768
-- Similarity Score: 0.91
+- Similarity Score: 0.31
 - Generated Caption: A brown dog runs through a grassy field.
 - Tags: dog, grass, field, running
 - Explanation: This image matches because the generated caption and tags contain a dog, outdoor grass, and running activity.
@@ -611,26 +672,25 @@ The main notebook should be:
 image_extractor_agent_day5.ipynb
 ```
 
-Required sections:
+Required sections (note: the CLIP index is built BEFORE any captioning, so the notebook works end-to-end without an API key):
 
 ```text
 1. Project overview
 2. Setup and imports
 3. Load environment variables
-4. Load image dataset
-5. Create or load metadata.csv
+4. Prepare dataset (kagglehub download + 3,000-image subset via scripts/prepare_flickr8k_subset.py)
+5. Load image dataset and metadata.csv
 6. Display sample images
-7. Generate image captions and tags with vision model
-8. Build searchable text
-9. Generate embeddings
-10. Build local vector index
-11. Implement semantic search
-12. Implement metadata filters
-13. Implement agent tools
-14. Run agent demo queries
-15. Save JSON and Markdown reports
-16. Mini evaluation
-17. Demo script / explanation
+7. Generate CLIP image embeddings (batched) and build the local vector index
+8. Implement semantic search (query → CLIP text encoder → cosine top-k)
+9. Implement metadata filters (filter before ranking)
+10. Generate image captions and tags with vision model (optional, lazy — retrieved images only)
+11. Build searchable text (for explanations and the report only)
+12. Implement agent tools
+13. Run agent demo queries
+14. Save JSON and Markdown reports
+15. Mini evaluation
+16. Demo script / explanation
 ```
 
 ---
@@ -673,9 +733,9 @@ Example:
 
 ```csv
 query,top_result_image_id,score,manual_judgment,notes
-dog running on grass,img_014,0.91,good,Dog and grass clearly visible
-people near water,img_022,0.88,good,People standing near lake
-bicycle on street,img_031,0.84,partial,Bicycle present but not clearly on street
+dog running on grass,img_014,0.31,good,Dog and grass clearly visible
+people near water,img_022,0.29,good,People standing near lake
+bicycle on street,img_031,0.27,partial,Bicycle present but not clearly on street
 ```
 
 This is enough for Day 5.
@@ -704,9 +764,9 @@ Do not let one failed image stop the whole notebook.
 
 # Caching Requirement
 
-Vision extraction and embeddings can cost time and API credits.
+Vision extraction costs API credits and wall-clock time; CLIP embedding of 3,000 images costs a couple of minutes. Cache both.
 
-Therefore, implement caching.
+**Captions are lazy.** Do not caption all 3,000 images up front — sequential vision calls would take roughly 2–4 hours. After a query returns top-k, caption only the uncached hit images and append them to the cache keyed by `image_id`; the cache accumulates across queries (tens of API calls instead of 3,000). An eager batch run over the whole subset is an optional extra, not a prerequisite. The mini evaluation is covered automatically, since its queries caption their own top results.
 
 Before calling the vision model, check:
 
@@ -719,10 +779,15 @@ If the image was already processed, reuse the existing generated caption/tags.
 Before generating embeddings, check:
 
 ```text
-cache/image_embeddings.npy
+cache/image_embeddings.npy + cache/embeddings_meta.json
 ```
 
-If embeddings already exist and match the current image index, reuse them.
+Reuse the cached embeddings only if **both** hold; otherwise recompute:
+
+- `embeddings_meta.json` `"image_ids"` equals the `image_id` column of `metadata.csv` — same ids, same order;
+- `embeddings_meta.json` `"model"` matches the current CLIP model name.
+
+This check is mandatory: a stale cache loads silently and returns wrong images with plausible-looking scores — nothing crashes, so the bug is invisible at the demo.
 
 This will make the notebook faster for demo.
 
@@ -742,7 +807,7 @@ Example layout:
 
 ```text
 Rank 1 — img_014.jpg
-Score: 0.91
+Score: 0.31
 Location: Almaty
 Date: 2026-07-01
 Caption: A dog runs across a grassy field.
@@ -786,7 +851,7 @@ It should include:
 
 ## What it does
 
-This project searches a local image dataset using natural language. The original dataset is treated as images plus metadata only. Captions are generated automatically using a vision model, embedded, and searched semantically.
+This project searches a local image dataset using natural language. The original dataset is treated as images plus metadata only. Images are embedded locally with CLIP and searched semantically; captions and tags are generated with a vision model for explanations and reports. The project runs inside an Anaconda (conda) environment.
 
 ## Dataset
 
@@ -807,9 +872,11 @@ Important: `captions.txt` is not used for indexing or retrieval.
 ## How to run
 
 ```bash
+conda create -n image-extractor python=3.11 -y
+conda activate image-extractor
 pip install -r requirements.txt
 cp .env.example .env
-# add OPENAI_API_KEY to .env
+# OPENAI_API_KEY is optional — only needed for caption generation
 jupyter notebook image_extractor_agent_day5.ipynb
 ```
 
@@ -835,7 +902,9 @@ jupyter notebook image_extractor_agent_day5.ipynb
 Create:
 
 ```txt
-openai
+torch  # install the CUDA build first: pip install torch --index-url https://download.pytorch.org/whl/cu128
+open-clip-torch
+kagglehub
 python-dotenv
 pandas
 numpy
@@ -848,8 +917,11 @@ jupyter
 Optional:
 
 ```txt
+openai
 gradio
 ```
+
+Install into the conda environment (`conda activate image-extractor` first). For GPU acceleration install the CUDA build of PyTorch matching your driver.
 
 ---
 
@@ -858,6 +930,8 @@ gradio
 Create:
 
 ```text
+# Optional: only used for vision captions/tags and LLM explanations.
+# CLIP retrieval works without any API key.
 OPENAI_API_KEY=your_api_key_here
 ```
 
@@ -869,41 +943,40 @@ Do not commit real API keys.
 
 Follow this order strictly:
 
-## Step 1 — Get dataset loading working
+## Step 1 — Prepare the dataset
 
-- load metadata
-- load images
-- display 5 sample images
+- download Flickr8k with kagglehub, run scripts/prepare_flickr8k_subset.py --count 3000
+- load metadata, display 5 sample images
 
-## Step 2 — Generate captions/tags
+## Step 2 — Generate CLIP image embeddings (no API key needed)
 
-- process 5 images first
-- save to cache
-- then scale to 20–50 images
+- does NOT depend on captions — runs with zero API calls
+- develop on the first ~50 images, then embed all 3,000 (batched, torch.no_grad(), GPU)
+- save image_embeddings.npy + embeddings_meta.json
 
-## Step 3 — Build searchable text
+## Step 3 — Implement search
 
-- combine caption + tags + metadata
-
-## Step 4 — Generate embeddings
-
-- embed searchable text
-- save vectors
-
-## Step 5 — Implement search
-
-- embed query
-- cosine similarity
+- query → CLIP text encoder
+- cosine similarity (one numpy matmul)
 - return top-k
 
-## Step 6 — Add metadata filters
+## Step 4 — Add metadata filters
 
-- location
-- date
+- location, date
+- filter BEFORE ranking (candidate mask over metadata.csv)
+
+## Step 5 — Generate captions/tags (optional, needs OPENAI_API_KEY)
+
+- lazy: caption only retrieved top-k images, accumulate in cache
+- process 5 images first to validate the schema
+
+## Step 6 — Build searchable text
+
+- combine caption + tags + metadata (for explanations and the report only)
 
 ## Step 7 — Add explanation
 
-- simple explanation first
+- rule-based fallback from score + matched filters first
 - LLM explanation optional
 
 ## Step 8 — Add agent wrapper
@@ -931,11 +1004,11 @@ Follow this order strictly:
 The project is complete when:
 
 ```text
-[ ] The notebook runs end-to-end
-[ ] It loads at least 20 images
+[ ] The notebook runs end-to-end inside a conda (Anaconda) environment
+[ ] It indexes the full 3,000-image Flickr8k subset
+[ ] It generates captions/tags when OPENAI_API_KEY is set; without a key it stores the documented fallback records and retrieval, display, and the report still work end-to-end
 [ ] It does not use captions.txt for indexing
-[ ] It generates captions/tags from images
-[ ] It creates embeddings
+[ ] It creates CLIP embeddings locally (image encoder for images, text encoder for queries)
 [ ] It retrieves top-k images from a text query
 [ ] It displays matching images
 [ ] It shows metadata for each result
@@ -976,7 +1049,7 @@ I built an Image Extractor Agent.
 
 The goal is to search an image dataset using natural language, even when the dataset originally contains only image files and basic metadata.
 
-I intentionally do not use the provided captions.txt file. Instead, the system analyzes each image with a vision model, generates captions and tags, builds embeddings, and creates a semantic search index.
+I intentionally do not use the provided captions.txt file. Instead, the system embeds every image locally with CLIP, and a vision model generates captions and tags for explanations. The query is embedded with the CLIP text encoder and matched against the image vectors in a semantic search index.
 
 When the user enters a query like “find images with a dog running outside,” the agent parses the query, searches the image index, applies optional metadata filters, returns the top matching images, explains why they match, and saves a markdown report.
 
