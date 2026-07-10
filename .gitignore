@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Local source download and generated artefacts can be recreated.
+data/raw/
+cache/*.json
+cache/*.npy
+cache/*.pkl
+outputs/*.json
+outputs/*.md
+
+# Keep the directory but do not commit the 3k image subset.
+data/images/*
+!data/images/.gitkeep
