@@ -15,3 +15,14 @@ outputs/*.md
 # Keep the directory but do not commit the 3k image subset.
 data/images/*
 !data/images/.gitkeep
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# Report: keep source (report.html, build_report.py) + final PDF; ignore regeneratable artefacts
+report/assets/
+report/report_final.html
+
+# Python caches
+.pytest_cache/

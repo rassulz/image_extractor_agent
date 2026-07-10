@@ -1,0 +1,18 @@
+torch  # install the CUDA build first if you have an NVIDIA GPU: pip install torch --index-url https://download.pytorch.org/whl/cu128
+open-clip-torch
+kagglehub
+python-dotenv
+pandas
+numpy
+Pillow
+matplotlib
+scikit-learn
+jupyter
+
+# Backend for the React demo
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Optional: vision captions/tags + explanations (not used for retrieval)
+openai

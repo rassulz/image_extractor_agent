@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Image Extractor Agent — Project Report</title>
+<style>
+  :root{
+    --bg:#07080C; --panel:#0E1017; --panel2:#12141C; --line:rgba(255,255,255,.10);
+    --tx:#EAECF2; --dim:#A0A5B4; --mut:#6A7080;
+    --violet:#8B5CF6; --cyan:#22D3EE; --pink:#FF2E97; --lime:#B6FF3B; --amber:#FBBF24;
+  }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:12px;line-height:1.55;letter-spacing:-.005em;}
+  @page{size:A4;margin:14mm 14mm;}
+  .page{position:relative;padding:0 0 8mm;page-break-after:always;}
+  .page:last-child{page-break-after:auto;}
+  h1{font-size:34px;line-height:1.05;margin:0 0 6px;font-weight:750;letter-spacing:-.02em;}
+  h2{font-size:18px;margin:20px 0 9px;font-weight:700;letter-spacing:-.01em;
+     padding-bottom:6px;border-bottom:1px solid var(--line);}
+  h3{font-size:13px;margin:12px 0 5px;font-weight:700;color:#fff;}
+  p{margin:7px 0;color:var(--dim);}
+  b,strong{color:#fff;font-weight:650;}
+  code{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;
+    background:rgba(139,92,246,.12);color:#C9BDFF;padding:1px 5px;border-radius:5px;}
+  .grad{background:linear-gradient(120deg,#fff 5%,var(--violet) 45%,var(--cyan) 85%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .lead{font-size:13.5px;color:var(--dim);max-width:none;}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;
+    padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--dim);}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .cover{background:
+      radial-gradient(60% 55% at 12% 8%, rgba(139,92,246,.30), transparent 60%),
+      radial-gradient(55% 50% at 92% 20%, rgba(34,211,238,.22), transparent 60%),
+      radial-gradient(50% 50% at 60% 100%, rgba(255,46,151,.16), transparent 60%),
+      var(--panel);
+    border:1px solid var(--line);border-radius:18px;padding:34px 30px;margin-bottom:16px;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+  .kpi .n{font-size:24px;font-weight:750;}
+  .kpi .l{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin-top:3px;}
+  table{width:100%;border-collapse:collapse;margin:7px 0;font-size:10.5px;}
+  th,td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:var(--mut);text-transform:uppercase;font-size:9px;letter-spacing:.08em;font-weight:700;}
+  td b{color:#fff;}
+  .flow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .step{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;}
+  .step .t{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);}
+  .step .h{font-weight:700;color:#fff;font-size:12px;margin:3px 0;}
+  .step .d{font-size:10.5px;color:var(--dim);}
+  .arrow{align-self:center;color:var(--violet);font-weight:700;}
+  ul{margin:6px 0;padding-left:18px;color:var(--dim);}
+  li{margin:4px 0;}
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--dim);
+    background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;white-space:pre;overflow:hidden;}
+  .shot{max-width:100%;max-height:218mm;width:auto;display:block;margin:10px auto 0;
+    border:1px solid var(--line);border-radius:12px;}
+  .cap{font-size:10px;color:var(--mut);text-align:center;margin-top:-2px;}
+  .foot{position:running(f);}
+  .tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:999px;margin:2px 3px 0 0;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--dim);}
+  .hr{height:1px;background:var(--line);margin:14px 0;}
+  .accent-v{color:var(--violet);} .accent-c{color:var(--cyan);} .accent-p{color:var(--pink);}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="page">
+  <div class="cover">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:26px;">
+      <span class="pill"><span class="dot" style="background:var(--cyan)"></span> YDL 2026 · Week 4 · Day 5 Capstone</span>
+      <span class="pill">CLIP · FastAPI · React</span>
+    </div>
+    <h1>Image Extractor<br><span class="grad">Agent</span></h1>
+    <p class="lead" style="margin-top:14px;max-width:560px;">
+      A semantic image-search engine. You describe a photo in plain English; the agent
+      finds it inside a local vector database of image embeddings — <b>without ever reading
+      the dataset's captions</b>. It understands the pictures directly.
+    </p>
+    <div class="grid3" style="margin-top:26px;">
+      <div class="kpi"><div class="n grad">3,000</div><div class="l">Images indexed</div></div>
+      <div class="kpi"><div class="n" style="color:var(--cyan)">~40 ms</div><div class="l">Query latency</div></div>
+      <div class="kpi"><div class="n" style="color:var(--pink)">512-D</div><div class="l">CLIP vectors</div></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">The problem</h3>
+      <p>You have a folder of photos and only basic metadata — no descriptions, no labels.
+      How do you find “a dog running on grass” among thousands of files? Filenames and
+      EXIF data can't answer that. You need a system that understands the <b>visual
+      content</b> of each image and matches it to a free-text query.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">The solution</h3>
+      <p>Encode every image once with <b>CLIP</b> into a 512-dimensional vector that captures
+      its meaning. Encode the user's text query into the <b>same</b> space. The closest
+      vectors (cosine similarity) are the best-matching photos. All retrieval runs
+      <b>100% locally</b> — no cloud, no API key required.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;border-color:rgba(255,46,151,.35);background:rgba(255,46,151,.05)">
+    <h3 style="margin-top:0;color:#FCA5C5">⛔ Core rule — captions.txt is never used</h3>
+    <p style="color:#F3C7D8">Flickr8k ships with a <code>captions.txt</code> file of human descriptions.
+    The whole point of this project is to prove the system understands images on its own, so that
+    file is <b>excluded from indexing and retrieval entirely</b>. Search is driven purely by CLIP
+    image↔text similarity. Captions used in the UI (optional) are generated by a vision model, not copied.</p>
+  </div>
+</section>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section class="page">
+  <h2>How it works — the pipeline</h2>
+  <p>Two phases. The <b>index</b> is built once and cached; every <b>query</b> after that is a single fast matrix multiply.</p>
+
+  <h3 class="accent-v">① Offline indexing (once, ~5 min on CPU, zero API calls)</h3>
+  <div class="flow">
+    <div class="step"><div class="t">Dataset</div><div class="h">Flickr8k subset</div><div class="d">3,000 images + synthetic metadata (location/date) via a seeded script.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">CLIP image encoder</div><div class="h">Embed images</div><div class="d">Each photo → 512-D vector, batched under <code>torch.no_grad()</code>, L2-normalized.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">Vector index</div><div class="h">Cache to disk</div><div class="d"><code>image_embeddings.npy</code> + a sidecar pinning model & image order.</div></div>
+  </div>
+
+  <h3 class="accent-c">② Online query (per search, ~40 ms)</h3>
+  <div class="flow">
+    <div class="step"><div class="t">User</div><div class="h">Text query</div><div class="d">“a dog running on grass”, “people near water”…</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">Parse</div><div class="h">Intent + filters</div><div class="d">Rule-based split into a visual query and metadata filters (location/date).</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">CLIP text encoder</div><div class="h">Query → vector</div><div class="d">Same 512-D space as the images.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">Rank</div><div class="h">Cosine top-k</div><div class="d">Filter-before-rank, then one <code>numpy</code> matmul.</div></div>
+  </div>
+
+  <h3>Why CLIP works across modalities</h3>
+  <p>CLIP (Contrastive Language–Image Pre-training) is a <b>dual encoder</b>: an image encoder and a
+  text encoder trained together on hundreds of millions of image–caption pairs so that a picture and
+  its description land at nearly the <b>same point</b> in a shared vector space. Because both live in
+  that one space, a text vector can be compared directly against image vectors. We use
+  <code>ViT-B/32</code> pre-trained on <code>laion2b_s34b_b79k</code>.</p>
+
+  <div class="card" style="margin-top:6px">
+    <h3 style="margin-top:0">Reading the score</h3>
+    <p>Cross-modal cosine similarity is <b>low in absolute terms</b> — a strong match is typically
+    <b class="accent-c">0.25–0.34</b>; you never see 0.9 across modalities. So the system <b>ranks</b>
+    by score, it never thresholds. The UI maps the raw score to a friendly match&nbsp;%.</p>
+  </div>
+
+  <h3>Key engineering decisions</h3>
+  <table>
+    <tr><th>Decision</th><th>Why it matters</th></tr>
+    <tr><td><b>Filter before ranking</b></td><td>For a query like “outdoor photos from July 2026”, we mask candidates by the date filter <i>first</i>, then rank only the survivors by CLIP similarity — so a metadata filter can never be starved out of the global top-k.</td></tr>
+    <tr><td><b>Stale-cache guard</b></td><td>On load, the index is validated against <code>metadata.csv</code> (same ids, same order, same model). A stale cache is rejected instead of silently returning wrong images.</td></tr>
+    <tr><td><b>Lazy, optional captions</b></td><td>Vision captioning is expensive. Search never calls OpenAI; captions are generated only on demand and cached — keeping search instant and token-free.</td></tr>
+    <tr><td><b>Pure image index</b></td><td>Only CLIP image vectors enter the index. Synthetic metadata has no visual grounding, so it influences results through filters, not through the embeddings.</td></tr>
+  </table>
+</section>
+
+<!-- ============ TECH STACK ============ -->
+<section class="page">
+  <h2>Technology stack — in detail</h2>
+
+  <h3 class="accent-v">Machine learning &amp; retrieval</h3>
+  <table>
+    <tr><th>Component</th><th>Technology</th><th>Role</th></tr>
+    <tr><td><b>Embedding model</b></td><td>OpenCLIP <code>ViT-B-32</code> / <code>laion2b_s34b_b79k</code></td><td>Encodes images and text queries into one shared 512-D space. The heart of the search.</td></tr>
+    <tr><td><b>DL framework</b></td><td>PyTorch</td><td>Runs the CLIP forward pass (GPU if available, CPU otherwise).</td></tr>
+    <tr><td><b>Vector math</b></td><td>NumPy</td><td>Cosine similarity as a single normalized matmul over the cached index.</td></tr>
+    <tr><td><b>Atlas projection</b></td><td>scikit-learn (PCA + KMeans)</td><td>Projects 512-D → 2D and auto-clusters the whole dataset for the semantic map.</td></tr>
+    <tr><td><b>Dataset</b></td><td>Flickr8k via <code>kagglehub</code></td><td>Deterministic 3,000-image subset; metadata generated with PIL + seeded RNG.</td></tr>
+    <tr><td><b>Vision captions (optional)</b></td><td>OpenAI <code>gpt-4.1-mini</code></td><td>Generates captions/tags for explanations only — never for retrieval.</td></tr>
+  </table>
+
+  <h3 class="accent-c">Backend</h3>
+  <table>
+    <tr><th>Component</th><th>Technology</th><th>Role</th></tr>
+    <tr><td><b>API server</b></td><td>FastAPI + Uvicorn</td><td>Endpoints: <code>/api/search</code>, <code>/api/atlas</code>, <code>/api/samples</code>, <code>/api/health</code>; serves images.</td></tr>
+    <tr><td><b>Agent orchestration</b></td><td>Modular Python tools</td><td><code>parse_query · metadata_filter · search_images · explain_results · save_report</code> — small composable tools, not one giant function.</td></tr>
+    <tr><td><b>Runtime</b></td><td>Anaconda (conda) env <code>practical-ai-engineering</code>, Python 3.13</td><td>Reproducible environment as required by the brief.</td></tr>
+  </table>
+
+  <h3 class="accent-p">Frontend</h3>
+  <table>
+    <tr><th>Component</th><th>Technology</th><th>Role</th></tr>
+    <tr><td><b>Framework</b></td><td>React 18 + Vite 6</td><td>Fast SPA with hot-reload dev server and a proxy to the API.</td></tr>
+    <tr><td><b>Styling</b></td><td>Tailwind CSS v4</td><td>Utility-first styling; custom dark-neon design system with CSS variables.</td></tr>
+    <tr><td><b>Icons</b></td><td>Tabler Icons (webfont)</td><td>Consistent line-icon set throughout the UI.</td></tr>
+    <tr><td><b>Custom components</b></td><td>SVG match gauges, cursor spotlight, animated aurora + grain, glassmorphism, count-up stats, skeleton loaders, semantic Atlas scatter</td><td>A polished, “top-site” feel inspired by modern AI product design.</td></tr>
+  </table>
+
+</section>
+
+<!-- ============ FEATURE: SEARCH ============ -->
+<section class="page">
+  <h2>The product — semantic search</h2>
+  <p>Type any description; get the top matching photos ranked by CLIP similarity, each with a match
+  gauge, date, dimensions, the raw score, and a plain-language explanation of why it ranked.
+  Search is instant because it is a single matrix multiply over the cached index.</p>
+  <img class="shot" src="assets/search.png" alt="Search screen">
+  <div class="cap">Query “dog running on grass” → six correct matches in ~40&nbsp;ms, scored 0.33–0.34.</div>
+</section>
+
+<!-- ============ FEATURE: ATLAS ============ -->
+<section class="page">
+  <h2>The product — the semantic map (Atlas)</h2>
+  <p>Every one of the 3,000 image vectors projected from 512-D CLIP space into 2D with PCA, then
+  auto-clustered (KMeans) and labeled by the closest CLIP concept. Clearly separated neighborhoods —
+  <span class="accent-c">nature</span>, <span class="accent-v">animals</span>, people, sport — show
+  the embedding space really does organize images by meaning, with no supervision.</p>
+  <img class="shot" src="assets/atlas.png" alt="Atlas screen">
+  <div class="cap">Auto-discovered clusters: animals · nature · people · children · sport · transport.</div>
+</section>
+
+<!-- ============ RUN + LIMITS ============ -->
+<section class="page">
+  <h2>Running the project</h2>
+  <div class="mono">conda activate practical-ai-engineering
+pip install -r requirements.txt
+
+# 1 · dataset: Flickr8k + deterministic 3,000-image subset
+python scripts/prepare_flickr8k_subset.py --count 3000 --remove-raw
+
+# 2 · frontend deps
+cd frontend && npm install && cd ..
+
+# 3 · build CLIP index (once) + start backend + frontend
+./run_demo.sh            # → http://localhost:5173</div>
+  <p style="margin-top:6px"><code>OPENAI_API_KEY</code> is optional — only for generated captions/explanations.
+  Retrieval works fully offline. By default the backend does pure-CLIP search (zero API calls per query).</p>
+
+  <h2>Project structure</h2>
+  <div class="mono">image_extractor_agent/
+├─ scripts/   prepare_flickr8k_subset.py · build_index.py · make_notebook.py
+├─ src/       embedding_index · search_tools · vision_extractor · agent · report_writer · dataset_loader
+├─ backend/   main.py            (FastAPI: search · atlas · samples · health)
+├─ frontend/  src/App.jsx · Atlas.jsx · ui.jsx   (React + Vite + Tailwind)
+├─ cache/     image_embeddings.npy · embeddings_meta.json
+├─ outputs/   search_results.json · search_report.md
+└─ image_extractor_agent_day5.ipynb   (required notebook demo)</div>
+
+  <h2>Results &amp; limitations</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--lime)">What works well</h3>
+      <ul>
+        <li>Accurate top-k for concrete visual queries (dogs, water, bikes, crowds).</li>
+        <li>Instant search after a one-time index build (~40&nbsp;ms/query).</li>
+        <li>Correct metadata filtering (filter-before-rank).</li>
+        <li>Fully offline retrieval; no captions.txt, no cloud dependency.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--amber)">Honest limitations</h3>
+      <ul>
+        <li>Demo-scale dataset (3,000 of 8,091 images).</li>
+        <li>ViT-B/32 misses fine detail (exact counts, text in images).</li>
+        <li>Flickr8k has no real location metadata, so location is not used; only a <b>synthetic date</b> demonstrates filtering.</li>
+        <li>Query parsing is rule-based; an LLM parser would handle richer phrasing.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hr"></div>
+  <p style="text-align:center;color:var(--mut);font-size:10.5px">
+    Image Extractor Agent · YDL 2026 Week 4 Day 5 · Built with CLIP, FastAPI &amp; React ·
+    100% local semantic retrieval · captions.txt never used for indexing
+  </p>
+</section>
+
+</body>
+</html>
